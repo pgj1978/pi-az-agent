@@ -1,0 +1,16 @@
+services:
+  az-agent:
+    image: localhost:5000/az-agent:latest
+    restart: always
+    user: root
+    privileged: true
+    volumes:
+      # Allow agent to run docker commands on the host
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Access to the entire host file system
+      - /:/mnt/host
+    environment:
+      - AZP_URL=${AZP_URL}
+      - AZP_TOKEN=${AZP_TOKEN}
+      - AZP_AGENT_NAME=${AZP_AGENT_NAME}
+      - AZP_POOL=${AZP_POOL:-Default}
