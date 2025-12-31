@@ -1,27 +1,23 @@
-FROM ubuntu:22.04
+FROM ubuntu:latest
 
-ENV DEBIAN_FRONTEND=noninteractive
-RUN echo "APT::Get::Assume-Yes \"true\";" > /etc/apt/apt.conf.d/90assumeyes
+# Install required packages
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      curl \
+      jq \
+      git \
+      iputils-ping \
+      libcurl4 \
+      libicu-dev \
+      libssl-dev \
+      libkrb5-dev \
+      zlib1g-dev \
+      wget \
+      ca-certificates \
+      build-essential \
+      docker.io # Install Docker client
 
-# Install basic dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    curl \
-    jq \
-    git \
-    iputils-ping \
-    libcurl4 \
-    libicu70 \
-    libunwind8 \
-    netcat \
-    libssl3 \
-    gnupg \
-    lsb-release \
-    wget \
-    unzip \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install PowerShell (pwsh) for ARM64 via tar.gz
+# Install PowerShell 7.4.6 (ARM64)
 RUN wget -q https://github.com/PowerShell/PowerShell/releases/download/v7.4.6/powershell-7.4.6-linux-arm64.tar.gz -O /tmp/powershell.tar.gz && \
     mkdir -p /opt/microsoft/powershell/7 && \
     tar zxf /tmp/powershell.tar.gz -C /opt/microsoft/powershell/7 && \
@@ -29,22 +25,28 @@ RUN wget -q https://github.com/PowerShell/PowerShell/releases/download/v7.4.6/po
     ln -s /opt/microsoft/powershell/7/pwsh /usr/bin/pwsh && \
     rm /tmp/powershell.tar.gz
 
-# Install Docker CLI (to access host docker)
-RUN mkdir -p /etc/apt/keyrings && \
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg && \
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-    $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null && \
-    apt-get update && apt-get install -y docker-ce-cli && \
-    rm -rf /var/lib/apt/lists/*
+# Create directory for the agent
+RUN mkdir -p /azp/agent
 
-# Install .NET SDK 8.0 manually
-ENV DOTNET_ROOT=/usr/share/dotnet
-ENV PATH=$PATH:$DOTNET_ROOT
-RUN curl -fsSL https://dot.net/v1/dotnet-install.sh | bash /dev/stdin --channel 8.0 --install-dir $DOTNET_ROOT
+# Add a user
+RUN useradd -m -s /bin/bash myuser
+RUN usermod -aG docker myuser
 
-WORKDIR /azp
+# Download and extract the agent (ARM64 for Raspberry Pi)
+RUN curl -sL https://download.agent.dev.azure.com/agent/4.266.2/vsts-agent-linux-arm64-4.266.2.tar.gz | tar -xz -C /azp/agent
 
-COPY ./start.sh .
-RUN chmod +x start.sh
+# Create the _work directory and set ownership before switching user
+RUN mkdir -p /azp/agent/_work && \
+    chown -R myuser:myuser /azp/agent
 
-ENTRYPOINT [ "./start.sh" ]
+# Copy the entrypoint script and set ownership to myuser
+COPY --chown=myuser:myuser entrypoint.sh /azp/agent/
+
+# Switch to the non-root user
+USER myuser
+
+WORKDIR /azp/agent
+RUN chmod +x entrypoint.sh
+
+# Entrypoint script
+ENTRYPOINT ["./entrypoint.sh"]
