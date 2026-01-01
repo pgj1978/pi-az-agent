@@ -17,6 +17,15 @@ RUN apt-get update && \
       build-essential \
       docker.io # Install Docker client
 
+# Install Docker Compose v2 (ARM64)
+RUN mkdir -p /usr/local/lib/docker/cli-plugins && \
+    curl -SL https://github.com/docker/compose/releases/download/v2.29.1/docker-compose-linux-aarch64 -o /usr/local/lib/docker/cli-plugins/docker-compose && \
+    chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+
+# Change 'docker' group GID to 991 to match the host (Raspberry Pi)
+# This ensures 'myuser' can access /var/run/docker.sock which is owned by gid 991
+RUN groupmod -g 991 docker
+
 # Install PowerShell 7.4.6 (ARM64)
 RUN wget -q https://github.com/PowerShell/PowerShell/releases/download/v7.4.6/powershell-7.4.6-linux-arm64.tar.gz -O /tmp/powershell.tar.gz && \
     mkdir -p /opt/microsoft/powershell/7 && \
@@ -28,8 +37,10 @@ RUN wget -q https://github.com/PowerShell/PowerShell/releases/download/v7.4.6/po
 # Create directory for the agent
 RUN mkdir -p /azp/agent
 
-# Add a user
-RUN useradd -m -s /bin/bash myuser
+# Handle user creation with UID 1000 (match host user)
+# Ubuntu image might have a user with UID 1000, remove it if it exists to avoid conflict
+RUN touch /var/mail/ubuntu && chown ubuntu /var/mail/ubuntu && userdel -r ubuntu || true
+RUN useradd -m -u 1000 -s /bin/bash myuser
 RUN usermod -aG docker myuser
 
 # Download and extract the agent (ARM64 for Raspberry Pi)

@@ -8,6 +8,8 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       # Access to the entire host file system
       - /:/mnt/host
+      # Map code directory for direct access
+      - /home/pgj99/code:/home/pgj99/code
     environment:
       - AZP_URL=${AZP_URL}
       - AZP_TOKEN=${AZP_TOKEN}
